@@ -244,13 +244,17 @@ function renderDetail(id) {
       <div class="meta">
         Current: ${p.CURRENT_TASK ? esc(p.CURRENT_TASK.TITLE) : '—'}<br>
         Next: ${p.NEXT_TASK || '—'}<br>
-        Code repo: ${p.REPO ? `<a href="https://github.com/${p.REPO}" style="color:#6fb3f2" target="_blank">${p.REPO}</a>` : 'not linked'}
+        Code repo: ${p.REPO ? `<a href="https://github.com/${p.REPO}" style="color:#6fb3f2" target="_blank">${p.REPO}</a>` : 'not linked'}<br>
+        Autonomous mode: <b style="color:${p.AUTONOMOUS_MODE ? '#5fd28c' : '#98a2ad'}">${p.AUTONOMOUS_MODE ? 'ON — काम खुद चलता रहेगा' : 'OFF'}</b>
       </div>
       ${p.RESUME_POINT ? `<div class="resume">${esc(p.RESUME_POINT)}</div>` : ''}
       <div class="actions">
         <button onclick="work('${p.PROJECT_ID}')">Work (1 task)</button>
         <button onclick="autoRun('${p.PROJECT_ID}')">Auto</button>
         <button onclick="toggleAdd('${p.PROJECT_ID}')">+ Task</button>
+      </div>
+      <div class="actions">
+        <button class="${p.AUTONOMOUS_MODE ? '' : 'primary'}" onclick="toggleAutonomous('${p.PROJECT_ID}', ${!p.AUTONOMOUS_MODE})">${p.AUTONOMOUS_MODE ? 'Autonomous बंद करें' : 'Autonomous चालू करें'}</button>
       </div>
       <div class="addbox" id="add-${p.PROJECT_ID}">
         <div class="fieldrow">
@@ -296,6 +300,12 @@ function saveConfig() {
   refreshData();
 }
 function toggleAdd(id) { document.getElementById('add-' + id).classList.toggle('open'); }
+
+async function toggleAutonomous(id, enable) {
+  setStatus((enable ? 'Autonomous चालू' : 'Autonomous बंद') + ' किया जा रहा है…');
+  await dispatch({ action: enable ? 'autonomous-on' : 'autonomous-off', projectId: id });
+  setStatus('हो गया — ~30-60s में state update होगा।');
+}
 
 async function addTask(id) {
   const title = document.getElementById('title-' + id).value.trim();
