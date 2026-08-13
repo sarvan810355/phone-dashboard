@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="hi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Project Agent</title>
+<style>
+  :root { color-scheme: dark; }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; padding: 16px 16px 60px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0b0d10; color: #e8e8e8;
+    max-width: 720px; margin-inline: auto;
+  }
+  h1 { font-size: 1.25rem; margin: 4px 0 14px; }
+  .card {
+    background: #16191d; border: 1px solid #262b31; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .name { font-weight: 600; font-size: 1.05rem; }
+  .badge {
+    font-size: 0.72rem; padding: 3px 8px; border-radius: 999px;
+    background: #2a2f36; color: #b8c0cc; white-space: nowrap;
+  }
+  .badge.running { background: #163a2b; color: #5fd28c; }
+  .badge.waiting, .badge.blocked { background: #3a2c16; color: #e0a94f; }
+  .badge.completed { background: #16283a; color: #6fb3f2; }
+  .badge.failed { background: #3a1620; color: #f26f8c; }
+  .meta { font-size: 0.85rem; color: #98a2ad; margin-top: 6px; line-height: 1.4; }
+  .resume { font-size: 0.82rem; color: #c9cfd6; margin-top: 8px; background: #101215; padding: 8px 10px; border-radius: 8px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  button {
+    flex: 1; min-width: 80px; padding: 9px 10px; border-radius: 8px; border: none;
+    background: #262b31; color: #e8e8e8; font-size: 0.85rem; font-weight: 500;
+  }
+  button:active { background: #333a42; }
+  button.primary { background: #2b5fd9; color: white; }
+  .addbox { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
+  .addbox.open { display: flex; }
+  input, textarea, select {
+    width: 100%; background: #0f1114; border: 1px solid #2a2f36; color: #e8e8e8;
+    border-radius: 8px; padding: 9px 10px; font-size: 0.9rem; font-family: inherit;
+  }
+  .newproj { display: flex; gap: 8px; margin-bottom: 16px; }
+  .newproj input { flex: 1; }
+  .empty { color: #7c8591; text-align: center; padding: 40px 0; }
+  #status { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 0.75rem; color: #667; }
+  .gear { background: none; border: none; color: #98a2ad; font-size: 1.2rem; flex: 0 0 auto; min-width: auto; padding: 4px 8px; }
+  .setup { display: flex; flex-direction: column; gap: 10px; }
+  .setup label { font-size: 0.82rem; color: #98a2ad; }
+  .hint { font-size: 0.78rem; color: #7c8591; line-height: 1.5; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <h1>Project Agent</h1>
+  <button class="gear" onclick="toggleSetup()">⚙</button>
+</div>
+
+<div id="setupCard" class="card setup" style="display:none">
+  <label>GitHub username/org</label>
+  <input id="cfgOwner" placeholder="e.g. sanjukaushik">
+  <label>Repo name (the private data repo)</label>
+  <input id="cfgRepo" placeholder="e.g. project-agent">
+  <label>Personal Access Token (fine-grained, repo scope: contents + actions, read/write)</label>
+  <input id="cfgToken" type="password" placeholder="github_pat_...">
+  <div class="hint">
+    Token सिर्फ आपके फोन के browser में (localStorage) रहता है — किसी server पर नहीं भेजा जाता, सीधे GitHub API को जाता है।
+  </div>
+  <button class="primary" onclick="saveConfig()">Save</button>
+</div>
+
+<div class="newproj">
+  <input id="npId" placeholder="project id (e.g. recharge_checker)">
+  <button class="primary" onclick="createProject()">+ New</button>
+</div>
+<div id="list" class="empty">Loading…</div>
+<div id="status"></div>
+
+<script>
+const CFG_KEY = 'pa_config';
+function getConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
+function setConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
+
+function toggleSetup() {
+  const card = document.getElementById('setupCard');
+  const open = card.style.display !== 'none';
+  card.style.display = open ? 'none' : 'flex';
+  if (!open) {
+    const c = getConfig();
+    document.getElementById('cfgOwner').value = c.owner || '';
+    document.getElementById('cfgRepo').value = c.repo || '';
+    document.getElementById('cfgToken').value = c.token || '';
+  }
+}
+function saveConfig() {
+  setConfig({
+    owner: document.getElementById('cfgOwner').value.trim(),
+    repo: document.getElementById('cfgRepo').value.trim(),
+    token: document.getElementById('cfgToken').value.trim(),
+  });
+  toggleSetup();
+  refresh();
+}
+
+const DATA_DIR = 'cloud-orchestrator/projects';
+const WORKFLOW = 'agent.yml';
+
+function gh(path, opts = {}) {
+  const c = getConfig();
+  if (!c.owner || !c.repo || !c.token) throw new Error('पहले ⚙ में owner/repo/token भरें');
+  return fetch(`https://api.github.com/repos/${c.owner}/${c.repo}${path}`, {
+    method: opts.method || 'GET',
+    headers: {
+      Authorization: `Bearer ${c.token}`,
+      Accept: 'application/vnd.github+json',
+      ...(opts.body ? { 'Content-Type': 'application/json' } : {}),
+    },
+    body: opts.body ? JSON.stringify(opts.body) : undefined,
+  });
+}
+
+async function listProjectIds() {
+  const res = await gh(`/contents/${DATA_DIR}`);
+  if (res.status === 404) return [];
+  if (!res.ok) throw new Error('project list: ' + res.status);
+  const items = await res.json();
+  return items.filter((i) => i.type === 'dir').map((i) => i.name);
+}
+
+async function loadProject(id) {
+  const res = await gh(`/contents/${DATA_DIR}/${id}/state.json`);
+  if (!res.ok) return null;
+  const file = await res.json();
+  return JSON.parse(decodeURIComponent(escape(atob(file.content))));
+}
+
+async function dispatch(inputs) {
+  const res = await gh(`/actions/workflows/${WORKFLOW}/dispatches`, {
+    method: 'POST',
+    body: { ref: 'main', inputs },
+  });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error('trigger failed: ' + res.status + ' ' + t);
+  }
+}
+
+function badgeClass(status) {
+  if (['RUNNING', 'READY'].includes(status)) return 'running';
+  if (['WAITING_FOR_RESOURCE', 'WAITING_FOR_USER', 'BLOCKED', 'PAUSED'].includes(status)) return 'waiting';
+  if (status === 'COMPLETED') return 'completed';
+  if (status === 'FAILED') return 'failed';
+  return '';
+}
+
+function render(projects) {
+  const list = document.getElementById('list');
+  if (!projects.length) {
+    list.className = 'empty';
+    list.innerHTML = 'कोई project नहीं है। ऊपर से नया बनाएं।';
+    return;
+  }
+  list.className = '';
+  list.innerHTML = projects.map((p) => `
+    <div class="card">
+      <div class="row">
+        <span class="name">${p.PROJECT_NAME}</span>
+        <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
+      </div>
+      <div class="meta">
+        Current: ${p.CURRENT_TASK ? p.CURRENT_TASK.TITLE : '—'} &middot;
+        Next: ${p.NEXT_TASK || '—'} &middot;
+        Queued: ${p.TASK_QUEUE.length} &middot; Done: ${p.COMPLETED_TASKS.length}
+      </div>
+      ${p.RESUME_POINT ? `<div class="resume">${p.RESUME_POINT}</div>` : ''}
+      <div class="actions">
+        <button onclick="work('${p.PROJECT_ID}')">Work (1 task)</button>
+        <button onclick="autoRun('${p.PROJECT_ID}')">Auto</button>
+        <button onclick="toggleAdd('${p.PROJECT_ID}')">+ Task</button>
+      </div>
+      <div class="addbox" id="add-${p.PROJECT_ID}">
+        <input id="title-${p.PROJECT_ID}" placeholder="Task title">
+        <textarea id="desc-${p.PROJECT_ID}" rows="2" placeholder="Description"></textarea>
+        <button class="primary" onclick="addTask('${p.PROJECT_ID}')">Add task (queues, runs on next Work/Auto)</button>
+      </div>
+    </div>
+  `).join('');
+}
+
+async function refresh() {
+  try {
+    const ids = await listProjectIds();
+    const projects = (await Promise.all(ids.map(loadProject))).filter(Boolean);
+    render(projects);
+    setStatus('updated ' + new Date().toLocaleTimeString());
+  } catch (e) {
+    setStatus('error: ' + e.message);
+  }
+}
+
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function toggleAdd(id) { document.getElementById('add-' + id).classList.toggle('open'); }
+
+async function addTask(id) {
+  const title = document.getElementById('title-' + id).value.trim();
+  const description = document.getElementById('desc-' + id).value.trim();
+  if (!title) return;
+  setStatus('queuing task on GitHub Actions…');
+  await dispatch({ action: 'add-task', projectId: id, title, description });
+  setStatus('task queued — GitHub Actions चल रहा है, ~30-60s में state update होगा। नीचे refresh करें।');
+}
+
+async function createProject() {
+  const id = document.getElementById('npId').value.trim();
+  if (!id) return;
+  setStatus('creating project on GitHub Actions…');
+  await dispatch({ action: 'init', projectId: id });
+  document.getElementById('npId').value = '';
+  setStatus('project create queued — थोड़ी देर बाद refresh करें।');
+}
+
+async function work(id) { setStatus('running one task cycle in the cloud…'); await dispatch({ action: 'work', projectId: id }); setStatus('cycle queued — ~30-90s में repo update होगा।'); }
+async function autoRun(id) { setStatus('running cycles in the cloud…'); await dispatch({ action: 'auto', projectId: id, maxCycles: '20' }); setStatus('auto run queued — कुछ मिनट लग सकते हैं, बाद में refresh करें।'); }
+
+if (!getConfig().token) toggleSetup();
+refresh();
+setInterval(refresh, 20000);
+</script>
+</body>
+</html>
