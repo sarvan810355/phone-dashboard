@@ -81,6 +81,12 @@
   }
   .mic.listening { background: #5a1e1e; color: #ff8a8a; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+  .attachrow { display: flex; gap: 8px; flex-wrap: wrap; }
+  .filebtn {
+    flex: 1; min-width: 130px; text-align: center; padding: 9px 10px; border-radius: 8px;
+    background: #262b31; color: #e8e8e8; font-size: 0.82rem; font-weight: 500; cursor: pointer;
+  }
+  .filebtn:active { background: #333a42; }
 </style>
 </head>
 <body>
@@ -265,6 +271,15 @@ function renderDetail(id) {
           <textarea id="desc-${p.PROJECT_ID}" rows="2" placeholder="Description"></textarea>
           <button type="button" class="mic" id="mic-desc-${p.PROJECT_ID}" onclick="startVoice('desc-${p.PROJECT_ID}')">🎤</button>
         </div>
+        <div class="attachrow">
+          <label class="filebtn">📷 Screenshots
+            <input type="file" id="shots-${p.PROJECT_ID}" accept="image/*" multiple style="display:none" onchange="renderAttachList('${p.PROJECT_ID}')">
+          </label>
+          <label class="filebtn">🎥 Screen recording
+            <input type="file" id="rec-${p.PROJECT_ID}" accept="video/*" style="display:none" onchange="renderAttachList('${p.PROJECT_ID}')">
+          </label>
+        </div>
+        <div class="hint" id="attachlist-${p.PROJECT_ID}"></div>
         <button class="primary" onclick="addTask('${p.PROJECT_ID}')">Add task</button>
       </div>
       <div class="actions">
@@ -307,10 +322,61 @@ async function toggleAutonomous(id, enable) {
   setStatus('हो गया — ~30-60s में state update होगा।');
 }
 
+function renderAttachList(id) {
+  const shots = document.getElementById('shots-' + id).files;
+  const rec = document.getElementById('rec-' + id).files;
+  const parts = [];
+  for (const f of shots) parts.push(`📷 ${f.name} (${Math.round(f.size / 1024)} KB)`);
+  for (const f of rec) parts.push(`🎥 ${f.name} (${Math.round(f.size / 1024 / 1024)} MB)`);
+  document.getElementById('attachlist-' + id).textContent = parts.join(', ');
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+
+// Uploads an attachment straight into the data repo (needs the dashboard's
+// token to have Contents:Write, not just Read) so it's sitting right there
+// in the checked-out workspace when Claude Code runs the task — it can just
+// Read the file path like any other file in the repo.
+async function uploadAttachment(projectId, stagingId, file) {
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+  const path = `${DATA_DIR}/${projectId}/attachments/${stagingId}/${safeName}`;
+  const content = await fileToBase64(file);
+  const res = await gh(`/contents/${path}`, {
+    method: 'PUT',
+    body: { message: `attach: ${safeName}`, content },
+  });
+  if (!res.ok) throw new Error(`upload failed for ${file.name}: ${res.status}`);
+  return path;
+}
+
 async function addTask(id) {
   const title = document.getElementById('title-' + id).value.trim();
-  const description = document.getElementById('desc-' + id).value.trim();
+  let description = document.getElementById('desc-' + id).value.trim();
   if (!title) return;
+  const shots = [...document.getElementById('shots-' + id).files];
+  const rec = [...document.getElementById('rec-' + id).files];
+  const allFiles = [...shots, ...rec];
+
+  if (allFiles.length) {
+    const stagingId = 'a' + Date.now();
+    setStatus(`${allFiles.length} file upload हो रही हैं…`);
+    try {
+      const paths = [];
+      for (const f of allFiles) paths.push(await uploadAttachment(id, stagingId, f));
+      description += `\n\nAttached files (Read tool से देखें, ये उसी checked-out repo में मौजूद हैं):\n` + paths.map((p) => `- ${p}`).join('\n');
+    } catch (e) {
+      setStatus('Attachment upload error: ' + e.message);
+      return;
+    }
+  }
+
   setStatus('queuing task on GitHub Actions…');
   await dispatch({ action: 'add-task', projectId: id, title, description });
   setStatus('task queued — ~30-60s में state update होगा।');
