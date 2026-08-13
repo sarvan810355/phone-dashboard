@@ -73,9 +73,10 @@
   <button class="primary" onclick="saveConfig()">Save</button>
 </div>
 
-<div class="newproj">
-  <input id="npId" placeholder="project id (e.g. recharge_checker)">
-  <button class="primary" onclick="createProject()">+ New</button>
+<div class="card setup" style="flex-direction:row; flex-wrap:wrap; gap:8px">
+  <input id="npId" style="flex:1; min-width:120px" placeholder="project id (e.g. recharge_checker)">
+  <input id="npRepo" style="flex:1; min-width:150px" placeholder="owner/repo (optional, code link)">
+  <button class="primary" style="flex:0 0 100%" onclick="createProject()">+ New Project</button>
 </div>
 <div id="list" class="empty">Loading…</div>
 <div id="status"></div>
@@ -174,7 +175,8 @@ function render(projects) {
       <div class="meta">
         Current: ${p.CURRENT_TASK ? p.CURRENT_TASK.TITLE : '—'} &middot;
         Next: ${p.NEXT_TASK || '—'} &middot;
-        Queued: ${p.TASK_QUEUE.length} &middot; Done: ${p.COMPLETED_TASKS.length}
+        Queued: ${p.TASK_QUEUE.length} &middot; Done: ${p.COMPLETED_TASKS.length}<br>
+        Code repo: ${p.REPO || '<i>not linked</i>'}
       </div>
       ${p.RESUME_POINT ? `<div class="resume">${p.RESUME_POINT}</div>` : ''}
       <div class="actions">
@@ -216,10 +218,12 @@ async function addTask(id) {
 
 async function createProject() {
   const id = document.getElementById('npId').value.trim();
+  const repo = document.getElementById('npRepo').value.trim();
   if (!id) return;
   setStatus('creating project on GitHub Actions…');
-  await dispatch({ action: 'init', projectId: id });
+  await dispatch({ action: 'init', projectId: id, repo });
   document.getElementById('npId').value = '';
+  document.getElementById('npRepo').value = '';
   setStatus('project create queued — थोड़ी देर बाद refresh करें।');
 }
 
