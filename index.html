@@ -341,25 +341,26 @@ function startVoice(fieldId) {
 }
 
 // ---------- APK download ----------
-// APKs are published to a dedicated orphan branch (apk/<projectId>) in the
-// public phone-dashboard repo by the workflow, and served via GitHub's raw
-// content CDN — no auth, no CORS issues, native browser download (works
-// reliably for large files, unlike fetching a private-repo release asset
-// via JS, which GitHub blocks with CORS regardless of file size).
-function apkUrl(id) {
-  return `https://raw.githubusercontent.com/sarvan810355/phone-dashboard/apk/${encodeURIComponent(id)}/app.apk`;
-}
-
+// APKs are published as a GitHub Release on the public phone-dashboard repo
+// (tag apk-<projectId>), not committed to git (avoids the 100MB blob limit)
+// and not on the private project repo (avoids the CORS-on-private-asset
+// problem). Being a public-repo release, the asset needs no auth — a plain
+// link triggers a normal browser-native download.
 async function downloadApk(id) {
   setStatus('APK check कर रहा हूं…');
   try {
-    const head = await fetch(apkUrl(id), { method: 'HEAD', cache: 'no-store' });
-    if (!head.ok) { setStatus('अभी तक कोई APK build नहीं हुआ — पहले Work/Auto चलाएं'); return; }
-    const sizeMb = head.headers.get('content-length') ? Math.round(head.headers.get('content-length') / 1024 / 1024) : '?';
-    setStatus('Download शुरू हो रहा है… (' + sizeMb + ' MB)');
+    const res = await fetch(`https://api.github.com/repos/sarvan810355/phone-dashboard/releases/tags/apk-${encodeURIComponent(id)}`, {
+      headers: { Accept: 'application/vnd.github+json' },
+    });
+    if (res.status === 404) { setStatus('अभी तक कोई APK build नहीं हुआ — पहले Work/Auto चलाएं'); return; }
+    if (!res.ok) throw new Error('release fetch: ' + res.status);
+    const rel = await res.json();
+    const asset = rel.assets.find((a) => a.name.endsWith('.apk'));
+    if (!asset) { setStatus('Release मिली पर APK file नहीं मिली'); return; }
+    setStatus('Download शुरू हो रहा है… (' + Math.round(asset.size / 1024 / 1024) + ' MB)');
     const a = document.createElement('a');
-    a.href = apkUrl(id) + '?t=' + Date.now();
-    a.download = id + '.apk';
+    a.href = asset.browser_download_url;
+    a.download = asset.name;
     document.body.appendChild(a);
     a.click();
     a.remove();
