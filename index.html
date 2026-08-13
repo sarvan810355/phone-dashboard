@@ -14,6 +14,7 @@
     max-width: 720px; margin-inline: auto;
   }
   h1 { font-size: 1.25rem; margin: 4px 0 14px; }
+  h2 { font-size: 1.1rem; margin: 0; }
   .card {
     background: #16191d; border: 1px solid #262b31; border-radius: 12px;
     padding: 14px 16px; margin-bottom: 12px;
@@ -22,7 +23,7 @@
   .name { font-weight: 600; font-size: 1.05rem; }
   .badge {
     font-size: 0.72rem; padding: 3px 8px; border-radius: 999px;
-    background: #2a2f36; color: #b8c0cc; white-space: nowrap;
+    background: #2a2f36; color: #b8c0cc; white-space: nowrap; flex: 0 0 auto;
   }
   .badge.running { background: #163a2b; color: #5fd28c; }
   .badge.waiting, .badge.blocked { background: #3a2c16; color: #e0a94f; }
@@ -51,61 +52,37 @@
   .setup { display: flex; flex-direction: column; gap: 10px; }
   .setup label { font-size: 0.82rem; color: #98a2ad; }
   .hint { font-size: 0.78rem; color: #7c8591; line-height: 1.5; }
-  .topbar { display: flex; justify-content: space-between; align-items: center; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .back { background: none; border: none; color: #6fb3f2; font-size: 0.95rem; padding: 4px 0; min-width: auto; flex: 0 0 auto; text-align: left; }
+
+  /* project list rows */
+  .plist { display: flex; flex-direction: column; gap: 8px; }
+  .prow {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    background: #16191d; border: 1px solid #262b31; border-radius: 12px;
+    padding: 14px 16px; cursor: pointer;
+  }
+  .prow:active { background: #1c2025; }
+  .prow .name { font-size: 1rem; }
+  .prow .sub { font-size: 0.78rem; color: #7c8591; margin-top: 3px; }
+  .chev { color: #565e68; font-size: 1.1rem; flex: 0 0 auto; }
+
+  .sectiontitle { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #7c8591; margin: 18px 0 8px; }
+  .tasklist { display: flex; flex-direction: column; gap: 6px; }
+  .taskrow { background: #101215; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; }
+  .taskrow .ttitle { font-weight: 500; }
+  .taskrow .tstatus { font-size: 0.7rem; color: #7c8591; margin-left: 6px; }
 </style>
 </head>
 <body>
-<div class="topbar">
-  <h1>Project Agent</h1>
-  <button class="gear" onclick="toggleSetup()">⚙</button>
-</div>
 
-<div id="setupCard" class="card setup" style="display:none">
-  <label>GitHub username/org</label>
-  <input id="cfgOwner" placeholder="e.g. sanjukaushik">
-  <label>Repo name (the private data repo)</label>
-  <input id="cfgRepo" placeholder="e.g. project-agent">
-  <label>Personal Access Token (fine-grained, repo scope: contents + actions, read/write)</label>
-  <input id="cfgToken" type="password" placeholder="github_pat_...">
-  <div class="hint">
-    Token सिर्फ आपके फोन के browser में (localStorage) रहता है — किसी server पर नहीं भेजा जाता, सीधे GitHub API को जाता है।
-  </div>
-  <button class="primary" onclick="saveConfig()">Save</button>
-</div>
-
-<div class="card setup" style="flex-direction:row; flex-wrap:wrap; gap:8px">
-  <input id="npId" style="flex:1; min-width:120px" placeholder="project id (e.g. recharge_checker)">
-  <input id="npRepo" style="flex:1; min-width:150px" placeholder="owner/repo (optional, code link)">
-  <button class="primary" style="flex:0 0 100%" onclick="createProject()">+ New Project</button>
-</div>
-<div id="list" class="empty">Loading…</div>
+<div id="app"></div>
 <div id="status"></div>
 
 <script>
 const CFG_KEY = 'pa_config';
 function getConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
 function setConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
-
-function toggleSetup() {
-  const card = document.getElementById('setupCard');
-  const open = card.style.display !== 'none';
-  card.style.display = open ? 'none' : 'flex';
-  if (!open) {
-    const c = getConfig();
-    document.getElementById('cfgOwner').value = c.owner || '';
-    document.getElementById('cfgRepo').value = c.repo || '';
-    document.getElementById('cfgToken').value = c.token || '';
-  }
-}
-function saveConfig() {
-  setConfig({
-    owner: document.getElementById('cfgOwner').value.trim(),
-    repo: document.getElementById('cfgRepo').value.trim(),
-    token: document.getElementById('cfgToken').value.trim(),
-  });
-  toggleSetup();
-  refresh();
-}
 
 const DATA_DIR = 'cloud-orchestrator/projects';
 const WORKFLOW = 'agent.yml';
@@ -158,27 +135,105 @@ function badgeClass(status) {
   return '';
 }
 
-function render(projects) {
-  const list = document.getElementById('list');
-  if (!projects.length) {
-    list.className = 'empty';
-    list.innerHTML = 'कोई project नहीं है। ऊपर से नया बनाएं।';
+function setStatus(msg) { document.getElementById('status').textContent = msg; }
+function esc(s) { return (s || '').replace(/[&<>"]/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+// ---------- routing ----------
+function currentRoute() {
+  const h = location.hash.replace(/^#/, '');
+  if (h.startsWith('project/')) return { view: 'detail', id: decodeURIComponent(h.slice(8)) };
+  return { view: 'list' };
+}
+function goTo(hash) { location.hash = hash; }
+window.addEventListener('hashchange', render);
+
+let projectsCache = [];
+
+async function refreshData() {
+  try {
+    const ids = await listProjectIds();
+    projectsCache = (await Promise.all(ids.map(loadProject))).filter(Boolean);
+    setStatus('updated ' + new Date().toLocaleTimeString());
+  } catch (e) {
+    setStatus('error: ' + e.message);
+  }
+  render();
+}
+
+// ---------- views ----------
+function renderList() {
+  const app = document.getElementById('app');
+  const rows = projectsCache.map((p) => `
+    <div class="prow" onclick="goTo('project/${encodeURIComponent(p.PROJECT_ID)}')">
+      <div>
+        <div class="name">${esc(p.PROJECT_NAME)}</div>
+        <div class="sub">${p.CURRENT_TASK ? esc(p.CURRENT_TASK.TITLE) : (p.NEXT_TASK ? 'Next: ' + esc(p.NEXT_TASK) : 'कोई task queued नहीं')}</div>
+      </div>
+      <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
+      <span class="chev">›</span>
+    </div>
+  `).join('');
+
+  app.innerHTML = `
+    <div class="topbar">
+      <h1>Project Agent</h1>
+      <button class="gear" onclick="toggleSetup()">⚙</button>
+    </div>
+    <div id="setupCard" class="card setup" style="display:none">
+      <label>GitHub username/org</label>
+      <input id="cfgOwner" placeholder="e.g. sarvan810355">
+      <label>Repo name (the private data repo)</label>
+      <input id="cfgRepo" placeholder="e.g. cloud-orchestrator">
+      <label>Personal Access Token</label>
+      <input id="cfgToken" type="password" placeholder="github_pat_...">
+      <div class="hint">Token सिर्फ आपके फोन के browser में रहता है — सीधे GitHub API को जाता है।</div>
+      <button class="primary" onclick="saveConfig()">Save</button>
+    </div>
+    <div class="card setup" style="flex-direction:row; flex-wrap:wrap; gap:8px">
+      <input id="npId" style="flex:1; min-width:120px" placeholder="project id (e.g. recharge_checker)">
+      <input id="npRepo" style="flex:1; min-width:150px" placeholder="owner/repo (optional, code link)">
+      <button class="primary" style="flex:0 0 100%" onclick="createProject()">+ New Project</button>
+    </div>
+    <div class="sectiontitle">आपके projects</div>
+    <div class="plist">${rows || '<div class="empty">कोई project नहीं है। ऊपर से नया बनाएं।</div>'}</div>
+  `;
+
+  const c = getConfig();
+  document.getElementById('cfgOwner').value = c.owner || '';
+  document.getElementById('cfgRepo').value = c.repo || '';
+  document.getElementById('cfgToken').value = c.token || '';
+  if (!c.token) document.getElementById('setupCard').style.display = 'flex';
+}
+
+function renderDetail(id) {
+  const app = document.getElementById('app');
+  const p = projectsCache.find((x) => x.PROJECT_ID === id);
+  if (!p) {
+    app.innerHTML = `<button class="back" onclick="goTo('')">‹ वापस</button><div class="empty">Project नहीं मिला, refresh करें।</div>`;
     return;
   }
-  list.className = '';
-  list.innerHTML = projects.map((p) => `
+
+  const queueRows = p.TASK_QUEUE.map((t) => `
+    <div class="taskrow"><span class="ttitle">${esc(t.TITLE)}</span><span class="tstatus">${t.STATUS}</span></div>
+  `).join('') || '<div class="taskrow">कोई task queued नहीं</div>';
+
+  const doneRows = p.COMPLETED_TASKS.slice().reverse().map((t) => `
+    <div class="taskrow"><span class="ttitle">✓ ${esc(t.TITLE)}</span></div>
+  `).join('') || '<div class="taskrow">अभी तक कुछ पूरा नहीं हुआ</div>';
+
+  app.innerHTML = `
+    <button class="back" onclick="goTo('')">‹ सारे projects</button>
+    <div class="topbar" style="margin-top:8px">
+      <h2>${esc(p.PROJECT_NAME)}</h2>
+      <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
+    </div>
     <div class="card">
-      <div class="row">
-        <span class="name">${p.PROJECT_NAME}</span>
-        <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
-      </div>
       <div class="meta">
-        Current: ${p.CURRENT_TASK ? p.CURRENT_TASK.TITLE : '—'} &middot;
-        Next: ${p.NEXT_TASK || '—'} &middot;
-        Queued: ${p.TASK_QUEUE.length} &middot; Done: ${p.COMPLETED_TASKS.length}<br>
-        Code repo: ${p.REPO || '<i>not linked</i>'}
+        Current: ${p.CURRENT_TASK ? esc(p.CURRENT_TASK.TITLE) : '—'}<br>
+        Next: ${p.NEXT_TASK || '—'}<br>
+        Code repo: ${p.REPO ? `<a href="https://github.com/${p.REPO}" style="color:#6fb3f2" target="_blank">${p.REPO}</a>` : 'not linked'}
       </div>
-      ${p.RESUME_POINT ? `<div class="resume">${p.RESUME_POINT}</div>` : ''}
+      ${p.RESUME_POINT ? `<div class="resume">${esc(p.RESUME_POINT)}</div>` : ''}
       <div class="actions">
         <button onclick="work('${p.PROJECT_ID}')">Work (1 task)</button>
         <button onclick="autoRun('${p.PROJECT_ID}')">Auto</button>
@@ -187,24 +242,37 @@ function render(projects) {
       <div class="addbox" id="add-${p.PROJECT_ID}">
         <input id="title-${p.PROJECT_ID}" placeholder="Task title">
         <textarea id="desc-${p.PROJECT_ID}" rows="2" placeholder="Description"></textarea>
-        <button class="primary" onclick="addTask('${p.PROJECT_ID}')">Add task (queues, runs on next Work/Auto)</button>
+        <button class="primary" onclick="addTask('${p.PROJECT_ID}')">Add task</button>
       </div>
     </div>
-  `).join('');
+
+    <div class="sectiontitle">Queue (${p.TASK_QUEUE.length})</div>
+    <div class="tasklist">${queueRows}</div>
+
+    <div class="sectiontitle">Completed (${p.COMPLETED_TASKS.length})</div>
+    <div class="tasklist">${doneRows}</div>
+  `;
 }
 
-async function refresh() {
-  try {
-    const ids = await listProjectIds();
-    const projects = (await Promise.all(ids.map(loadProject))).filter(Boolean);
-    render(projects);
-    setStatus('updated ' + new Date().toLocaleTimeString());
-  } catch (e) {
-    setStatus('error: ' + e.message);
-  }
+function render() {
+  const r = currentRoute();
+  if (r.view === 'detail') renderDetail(r.id);
+  else renderList();
 }
 
-function setStatus(msg) { document.getElementById('status').textContent = msg; }
+// ---------- actions ----------
+function toggleSetup() {
+  const card = document.getElementById('setupCard');
+  card.style.display = card.style.display === 'none' ? 'flex' : 'none';
+}
+function saveConfig() {
+  setConfig({
+    owner: document.getElementById('cfgOwner').value.trim(),
+    repo: document.getElementById('cfgRepo').value.trim(),
+    token: document.getElementById('cfgToken').value.trim(),
+  });
+  refreshData();
+}
 function toggleAdd(id) { document.getElementById('add-' + id).classList.toggle('open'); }
 
 async function addTask(id) {
@@ -213,7 +281,7 @@ async function addTask(id) {
   if (!title) return;
   setStatus('queuing task on GitHub Actions…');
   await dispatch({ action: 'add-task', projectId: id, title, description });
-  setStatus('task queued — GitHub Actions चल रहा है, ~30-60s में state update होगा। नीचे refresh करें।');
+  setStatus('task queued — ~30-60s में state update होगा।');
 }
 
 async function createProject() {
@@ -222,17 +290,15 @@ async function createProject() {
   if (!id) return;
   setStatus('creating project on GitHub Actions…');
   await dispatch({ action: 'init', projectId: id, repo });
-  document.getElementById('npId').value = '';
-  document.getElementById('npRepo').value = '';
   setStatus('project create queued — थोड़ी देर बाद refresh करें।');
 }
 
 async function work(id) { setStatus('running one task cycle in the cloud…'); await dispatch({ action: 'work', projectId: id }); setStatus('cycle queued — ~30-90s में repo update होगा।'); }
-async function autoRun(id) { setStatus('running cycles in the cloud…'); await dispatch({ action: 'auto', projectId: id, maxCycles: '20' }); setStatus('auto run queued — कुछ मिनट लग सकते हैं, बाद में refresh करें।'); }
+async function autoRun(id) { setStatus('running cycles in the cloud…'); await dispatch({ action: 'auto', projectId: id, maxCycles: '20' }); setStatus('auto run queued — कुछ मिनट लग सकते हैं।'); }
 
-if (!getConfig().token) toggleSetup();
-refresh();
-setInterval(refresh, 20000);
+render();
+refreshData();
+setInterval(refreshData, 20000);
 </script>
 </body>
 </html>
