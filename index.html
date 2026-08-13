@@ -72,6 +72,15 @@
   .taskrow { background: #101215; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; }
   .taskrow .ttitle { font-weight: 500; }
   .taskrow .tstatus { font-size: 0.7rem; color: #7c8591; margin-left: 6px; }
+
+  .fieldrow { display: flex; gap: 6px; align-items: stretch; }
+  .fieldrow input, .fieldrow textarea { flex: 1; }
+  .mic {
+    flex: 0 0 auto; width: 42px; min-width: 42px; padding: 0; font-size: 1.1rem;
+    background: #262b31; border-radius: 8px;
+  }
+  .mic.listening { background: #5a1e1e; color: #ff8a8a; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
 </style>
 </head>
 <body>
@@ -244,9 +253,18 @@ function renderDetail(id) {
         <button onclick="toggleAdd('${p.PROJECT_ID}')">+ Task</button>
       </div>
       <div class="addbox" id="add-${p.PROJECT_ID}">
-        <input id="title-${p.PROJECT_ID}" placeholder="Task title">
-        <textarea id="desc-${p.PROJECT_ID}" rows="2" placeholder="Description"></textarea>
+        <div class="fieldrow">
+          <input id="title-${p.PROJECT_ID}" placeholder="Task title">
+          <button type="button" class="mic" id="mic-title-${p.PROJECT_ID}" onclick="startVoice('title-${p.PROJECT_ID}')">🎤</button>
+        </div>
+        <div class="fieldrow">
+          <textarea id="desc-${p.PROJECT_ID}" rows="2" placeholder="Description"></textarea>
+          <button type="button" class="mic" id="mic-desc-${p.PROJECT_ID}" onclick="startVoice('desc-${p.PROJECT_ID}')">🎤</button>
+        </div>
         <button class="primary" onclick="addTask('${p.PROJECT_ID}')">Add task</button>
+      </div>
+      <div class="actions">
+        <button onclick="downloadApk('${p.PROJECT_ID}')">📥 Download APK</button>
       </div>
     </div>
 
@@ -299,6 +317,63 @@ async function createProject() {
 
 async function work(id) { setStatus('running one task cycle in the cloud…'); await dispatch({ action: 'work', projectId: id }); setStatus('cycle queued — ~30-90s में repo update होगा।'); }
 async function autoRun(id) { setStatus('running cycles in the cloud…'); await dispatch({ action: 'auto', projectId: id, maxCycles: '20' }); setStatus('auto run queued — कुछ मिनट लग सकते हैं।'); }
+
+// ---------- voice input ----------
+function startVoice(fieldId) {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) { setStatus('इस browser में voice input support नहीं है (Chrome try करें)'); return; }
+  const rec = new SpeechRecognition();
+  rec.lang = (navigator.language && navigator.language.startsWith('hi')) ? 'hi-IN' : 'en-IN';
+  rec.interimResults = false;
+  rec.maxAlternatives = 1;
+  const btn = document.getElementById('mic-' + fieldId);
+  const field = document.getElementById(fieldId);
+  if (btn) btn.classList.add('listening');
+  setStatus('सुन रहा हूं… बोलिए');
+  rec.onresult = (e) => {
+    const text = e.results[0][0].transcript;
+    if (field) field.value = (field.value ? field.value.trim() + ' ' : '') + text;
+    setStatus('voice text जोड़ा गया');
+  };
+  rec.onerror = (e) => setStatus('voice error: ' + e.error);
+  rec.onend = () => { if (btn) btn.classList.remove('listening'); };
+  rec.start();
+}
+
+// ---------- APK download ----------
+async function downloadApk(id) {
+  const c = getConfig();
+  const p = projectsCache.find((x) => x.PROJECT_ID === id);
+  if (!p || !p.REPO) { setStatus('इस project से कोई code repo linked नहीं है'); return; }
+  setStatus('APK ढूंढ रहा हूं…');
+  try {
+    const relRes = await fetch(`https://api.github.com/repos/${p.REPO}/releases/tags/latest`, {
+      headers: { Authorization: `Bearer ${c.token}`, Accept: 'application/vnd.github+json' },
+    });
+    if (relRes.status === 404) { setStatus('अभी तक कोई APK build नहीं हुआ — पहले Work/Auto चलाएं'); return; }
+    if (!relRes.ok) throw new Error('release fetch: ' + relRes.status);
+    const rel = await relRes.json();
+    const asset = rel.assets.find((a) => a.name.endsWith('.apk'));
+    if (!asset) { setStatus('Release मिली पर APK file नहीं मिली'); return; }
+    setStatus('Download हो रहा है… (' + Math.round(asset.size / 1024 / 1024) + ' MB)');
+    const assetRes = await fetch(asset.url, {
+      headers: { Authorization: `Bearer ${c.token}`, Accept: 'application/octet-stream' },
+    });
+    if (!assetRes.ok) throw new Error('asset fetch: ' + assetRes.status);
+    const blob = await assetRes.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = asset.name;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    setStatus('Download शुरू हो गया — notification में देखें');
+  } catch (e) {
+    setStatus('APK download error: ' + e.message);
+  }
+}
 
 render();
 refreshData();
