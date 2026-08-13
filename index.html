@@ -84,7 +84,7 @@ const CFG_KEY = 'pa_config';
 function getConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY)) || {}; } catch { return {}; } }
 function setConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
 
-const DATA_DIR = 'cloud-orchestrator/projects';
+const DATA_DIR = 'projects';
 const WORKFLOW = 'agent.yml';
 
 function gh(path, opts = {}) {
@@ -157,7 +157,11 @@ async function refreshData() {
   } catch (e) {
     setStatus('error: ' + e.message);
   }
-  render();
+  // Don't wipe out whatever the user is currently typing (e.g. a new
+  // project id or task title) when a background refresh lands mid-type.
+  const active = document.activeElement;
+  const isTyping = active && ['INPUT', 'TEXTAREA'].includes(active.tagName) && document.getElementById('app').contains(active);
+  if (!isTyping) render();
 }
 
 // ---------- views ----------
