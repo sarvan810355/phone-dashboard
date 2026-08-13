@@ -341,34 +341,28 @@ function startVoice(fieldId) {
 }
 
 // ---------- APK download ----------
+// APKs are published to a dedicated orphan branch (apk/<projectId>) in the
+// public phone-dashboard repo by the workflow, and served via GitHub's raw
+// content CDN — no auth, no CORS issues, native browser download (works
+// reliably for large files, unlike fetching a private-repo release asset
+// via JS, which GitHub blocks with CORS regardless of file size).
+function apkUrl(id) {
+  return `https://raw.githubusercontent.com/sarvan810355/phone-dashboard/apk/${encodeURIComponent(id)}/app.apk`;
+}
+
 async function downloadApk(id) {
-  const c = getConfig();
-  const p = projectsCache.find((x) => x.PROJECT_ID === id);
-  if (!p || !p.REPO) { setStatus('इस project से कोई code repo linked नहीं है'); return; }
-  setStatus('APK ढूंढ रहा हूं…');
+  setStatus('APK check कर रहा हूं…');
   try {
-    const relRes = await fetch(`https://api.github.com/repos/${p.REPO}/releases/tags/latest`, {
-      headers: { Authorization: `Bearer ${c.token}`, Accept: 'application/vnd.github+json' },
-    });
-    if (relRes.status === 404) { setStatus('अभी तक कोई APK build नहीं हुआ — पहले Work/Auto चलाएं'); return; }
-    if (!relRes.ok) throw new Error('release fetch: ' + relRes.status);
-    const rel = await relRes.json();
-    const asset = rel.assets.find((a) => a.name.endsWith('.apk'));
-    if (!asset) { setStatus('Release मिली पर APK file नहीं मिली'); return; }
-    setStatus('Download हो रहा है… (' + Math.round(asset.size / 1024 / 1024) + ' MB)');
-    const assetRes = await fetch(asset.url, {
-      headers: { Authorization: `Bearer ${c.token}`, Accept: 'application/octet-stream' },
-    });
-    if (!assetRes.ok) throw new Error('asset fetch: ' + assetRes.status);
-    const blob = await assetRes.blob();
-    const url = URL.createObjectURL(blob);
+    const head = await fetch(apkUrl(id), { method: 'HEAD', cache: 'no-store' });
+    if (!head.ok) { setStatus('अभी तक कोई APK build नहीं हुआ — पहले Work/Auto चलाएं'); return; }
+    const sizeMb = head.headers.get('content-length') ? Math.round(head.headers.get('content-length') / 1024 / 1024) : '?';
+    setStatus('Download शुरू हो रहा है… (' + sizeMb + ' MB)');
     const a = document.createElement('a');
-    a.href = url;
-    a.download = asset.name;
+    a.href = apkUrl(id) + '?t=' + Date.now();
+    a.download = id + '.apk';
     document.body.appendChild(a);
     a.click();
     a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
     setStatus('Download शुरू हो गया — notification में देखें');
   } catch (e) {
     setStatus('APK download error: ' + e.message);
