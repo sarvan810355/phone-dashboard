@@ -5,96 +5,187 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Project Agent</title>
 <style>
-  :root { color-scheme: dark; }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; padding: 16px 16px 60px;
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    background: #0b0d10; color: #e8e8e8;
-    max-width: 720px; margin-inline: auto;
+  :root {
+    color-scheme: dark;
+    --bg: #08080c;
+    --bg-grad: radial-gradient(1200px 500px at 50% -10%, rgba(124,108,246,0.16), transparent 60%);
+    --surface: #131319;
+    --surface-2: #1a1a22;
+    --surface-3: #21212b;
+    --border: #26262f;
+    --border-soft: #1e1e26;
+    --text: #f2f3f7;
+    --text-dim: #9a9dac;
+    --text-faint: #64677a;
+    --accent: #7c6cf6;
+    --accent-2: #a78bfa;
+    --accent-grad: linear-gradient(135deg, #7c6cf6, #b06ae0);
+    --success: #34d399;
+    --success-bg: #0f2a22;
+    --warning: #fbbf24;
+    --warning-bg: #2c2310;
+    --danger: #f87171;
+    --danger-bg: #2a1417;
+    --info: #60a5fa;
+    --info-bg: #12233a;
+    --radius: 16px;
+    --radius-sm: 10px;
+    --shadow: 0 8px 24px rgba(0,0,0,0.35);
   }
-  h1 { font-size: 1.25rem; margin: 4px 0 14px; }
-  h2 { font-size: 1.1rem; margin: 0; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    margin: 0; padding: 20px 16px 70px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg) var(--bg-grad) no-repeat;
+    background-attachment: fixed;
+    color: var(--text);
+    max-width: 720px; margin-inline: auto;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1 { font-size: 1.4rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  h2 { font-size: 1.2rem; margin: 0; font-weight: 700; letter-spacing: -0.01em; }
+  .brand { display: flex; align-items: center; gap: 10px; }
+  .brand-mark {
+    width: 34px; height: 34px; border-radius: 10px; background: var(--accent-grad);
+    display: flex; align-items: center; justify-content: center; font-size: 1.05rem;
+    box-shadow: 0 4px 14px rgba(124,108,246,0.4); flex: 0 0 auto;
+  }
+
   .card {
-    background: #16191d; border: 1px solid #262b31; border-radius: 12px;
-    padding: 14px 16px; margin-bottom: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 16px 18px; margin-bottom: 12px; box-shadow: var(--shadow);
   }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .name { font-weight: 600; font-size: 1.05rem; }
+
   .badge {
-    font-size: 0.72rem; padding: 3px 8px; border-radius: 999px;
-    background: #2a2f36; color: #b8c0cc; white-space: nowrap; flex: 0 0 auto;
+    font-size: 0.68rem; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: var(--surface-3); color: var(--text-dim); white-space: nowrap; flex: 0 0 auto;
+    letter-spacing: 0.02em; text-transform: uppercase; display: inline-flex; align-items: center; gap: 5px;
   }
-  .badge.running { background: #163a2b; color: #5fd28c; }
-  .badge.waiting, .badge.blocked { background: #3a2c16; color: #e0a94f; }
-  .badge.completed { background: #16283a; color: #6fb3f2; }
-  .badge.failed { background: #3a1620; color: #f26f8c; }
-  .meta { font-size: 0.85rem; color: #98a2ad; margin-top: 6px; line-height: 1.4; }
-  .resume { font-size: 0.82rem; color: #c9cfd6; margin-top: 8px; background: #101215; padding: 8px 10px; border-radius: 8px; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .badge::before { content: ''; width: 6px; height: 6px; border-radius: 999px; background: currentColor; opacity: 0.9; }
+  .badge.running { background: var(--success-bg); color: var(--success); }
+  .badge.waiting, .badge.blocked { background: var(--warning-bg); color: var(--warning); }
+  .badge.completed { background: var(--info-bg); color: var(--info); }
+  .badge.failed { background: var(--danger-bg); color: var(--danger); }
+
+  .meta { font-size: 0.85rem; color: var(--text-dim); margin-top: 6px; line-height: 1.6; }
+  .meta a { color: var(--accent-2); text-decoration: none; }
+  .resume {
+    font-size: 0.82rem; color: #c9cfd6; margin-top: 10px; background: var(--surface-2);
+    border: 1px solid var(--border-soft); padding: 10px 12px; border-radius: var(--radius-sm); line-height: 1.5;
+  }
+
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
   button {
-    flex: 1; min-width: 80px; padding: 9px 10px; border-radius: 8px; border: none;
-    background: #262b31; color: #e8e8e8; font-size: 0.85rem; font-weight: 500;
+    flex: 1; min-width: 80px; padding: 11px 12px; border-radius: var(--radius-sm); border: 1px solid var(--border);
+    background: var(--surface-3); color: var(--text); font-size: 0.85rem; font-weight: 600;
+    transition: transform 0.05s ease, background 0.15s ease; font-family: inherit;
   }
-  button:active { background: #333a42; }
-  button.primary { background: #2b5fd9; color: white; }
-  .addbox { display: none; flex-direction: column; gap: 8px; margin-top: 10px; }
+  button:active { transform: scale(0.97); background: #292933; }
+  button.primary { background: var(--accent-grad); color: white; border: none; box-shadow: 0 4px 14px rgba(124,108,246,0.35); }
+  button.ghost { background: transparent; border: 1px solid var(--border); }
+
+  .addbox { display: none; flex-direction: column; gap: 8px; margin-top: 12px; padding-top: 12px; border-top: 1px dashed var(--border); }
   .addbox.open { display: flex; }
   input, textarea, select {
-    width: 100%; background: #0f1114; border: 1px solid #2a2f36; color: #e8e8e8;
-    border-radius: 8px; padding: 9px 10px; font-size: 0.9rem; font-family: inherit;
+    width: 100%; background: var(--surface-2); border: 1px solid var(--border); color: var(--text);
+    border-radius: var(--radius-sm); padding: 11px 12px; font-size: 0.9rem; font-family: inherit;
+    transition: border-color 0.15s ease;
   }
-  .newproj { display: flex; gap: 8px; margin-bottom: 16px; }
-  .newproj input { flex: 1; }
-  .empty { color: #7c8591; text-align: center; padding: 40px 0; }
-  #status { position: fixed; bottom: 10px; left: 0; right: 0; text-align: center; font-size: 0.75rem; color: #667; }
-  .gear { background: none; border: none; color: #98a2ad; font-size: 1.2rem; flex: 0 0 auto; min-width: auto; padding: 4px 8px; }
+  input:focus, textarea:focus { outline: none; border-color: var(--accent); }
+  ::placeholder { color: var(--text-faint); }
+
+  .empty { color: var(--text-faint); text-align: center; padding: 48px 16px; font-size: 0.9rem; }
+  .empty .big { font-size: 2rem; margin-bottom: 8px; }
+
+  #status {
+    position: fixed; bottom: 14px; left: 16px; right: 16px; text-align: center; font-size: 0.72rem;
+    color: var(--text-faint); pointer-events: none; z-index: 5;
+  }
+  .gear {
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-dim); font-size: 1.05rem;
+    flex: 0 0 auto; min-width: auto; width: 40px; height: 40px; padding: 0; border-radius: 12px;
+  }
   .setup { display: flex; flex-direction: column; gap: 10px; }
-  .setup label { font-size: 0.82rem; color: #98a2ad; }
-  .hint { font-size: 0.78rem; color: #7c8591; line-height: 1.5; }
-  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
-  .back { background: none; border: none; color: #6fb3f2; font-size: 0.95rem; padding: 4px 0; min-width: auto; flex: 0 0 auto; text-align: left; }
+  .setup label { font-size: 0.78rem; color: var(--text-dim); font-weight: 600; margin-top: 2px; }
+  .hint { font-size: 0.76rem; color: var(--text-faint); line-height: 1.55; margin-top: 6px; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .back {
+    background: none; border: none; color: var(--accent-2); font-size: 0.9rem; font-weight: 600;
+    padding: 6px 0; min-width: auto; flex: 0 0 auto; text-align: left;
+  }
+
+  /* usage / credit card */
+  .usage-card { background: linear-gradient(160deg, var(--surface) 0%, #171724 100%); }
+  .usage-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .usage-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint); font-weight: 700; }
+  .usage-num { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.02em; }
+  .usage-num small { font-size: 0.85rem; color: var(--text-dim); font-weight: 500; }
+  .usage-bar { height: 8px; border-radius: 999px; background: var(--surface-3); margin-top: 10px; overflow: hidden; }
+  .usage-fill { height: 100%; background: var(--accent-grad); border-radius: 999px; transition: width 0.4s ease; }
+  .usage-note { font-size: 0.72rem; color: var(--text-faint); margin-top: 8px; }
 
   /* project list rows */
-  .plist { display: flex; flex-direction: column; gap: 8px; }
+  .plist { display: flex; flex-direction: column; gap: 10px; }
   .prow {
-    display: flex; align-items: center; justify-content: space-between; gap: 10px;
-    background: #16191d; border: 1px solid #262b31; border-radius: 12px;
-    padding: 14px 16px; cursor: pointer;
+    display: flex; align-items: center; gap: 12px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 14px 16px; cursor: pointer; box-shadow: var(--shadow);
+    transition: transform 0.08s ease, border-color 0.15s ease;
   }
-  .prow:active { background: #1c2025; }
-  .prow .name { font-size: 1rem; }
-  .prow .sub { font-size: 0.78rem; color: #7c8591; margin-top: 3px; }
-  .chev { color: #565e68; font-size: 1.1rem; flex: 0 0 auto; }
+  .prow:active { transform: scale(0.985); border-color: var(--accent); }
+  .pavatar {
+    width: 40px; height: 40px; border-radius: 12px; flex: 0 0 auto;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 700; font-size: 1rem; color: white;
+  }
+  .prow-body { flex: 1; min-width: 0; }
+  .prow .name { font-size: 0.98rem; }
+  .prow .sub { font-size: 0.78rem; color: var(--text-faint); margin-top: 3px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pbar { height: 4px; border-radius: 999px; background: var(--surface-3); margin-top: 8px; overflow: hidden; }
+  .pbar-fill { height: 100%; background: var(--accent-grad); border-radius: 999px; }
+  .prow-right { display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex: 0 0 auto; }
+  .chev { color: var(--text-faint); font-size: 1.2rem; flex: 0 0 auto; }
 
-  .sectiontitle { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.04em; color: #7c8591; margin: 18px 0 8px; }
-  .tasklist { display: flex; flex-direction: column; gap: 6px; }
-  .taskrow { background: #101215; border-radius: 8px; padding: 8px 10px; font-size: 0.85rem; }
+  .sectiontitle {
+    font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-faint);
+    margin: 22px 2px 10px; font-weight: 700; display: flex; align-items: center; gap: 6px;
+  }
+  .tasklist { display: flex; flex-direction: column; gap: 7px; }
+  .taskrow {
+    background: var(--surface-2); border: 1px solid var(--border-soft); border-radius: var(--radius-sm);
+    padding: 10px 12px; font-size: 0.85rem;
+  }
   .taskrow .ttitle { font-weight: 500; }
-  .taskrow .tstatus { font-size: 0.7rem; color: #7c8591; margin-left: 6px; }
+  .taskrow .tstatus {
+    font-size: 0.66rem; color: var(--text-faint); margin-left: 6px; text-transform: uppercase;
+    letter-spacing: 0.03em; font-weight: 700;
+  }
 
   .fieldrow { display: flex; gap: 6px; align-items: stretch; }
   .fieldrow input, .fieldrow textarea { flex: 1; }
   .mic {
-    flex: 0 0 auto; width: 42px; min-width: 42px; padding: 0; font-size: 1.1rem;
-    background: #262b31; border-radius: 8px;
+    flex: 0 0 auto; width: 44px; min-width: 44px; padding: 0; font-size: 1.1rem;
+    background: var(--surface-3); border-radius: var(--radius-sm);
   }
-  .mic.listening { background: #5a1e1e; color: #ff8a8a; animation: pulse 1s infinite; }
+  .mic.listening { background: var(--danger-bg); color: #ff8a8a; animation: pulse 1s infinite; }
   @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
   .attachrow { display: flex; gap: 8px; flex-wrap: wrap; }
   .filebtn {
-    flex: 1; min-width: 130px; text-align: center; padding: 9px 10px; border-radius: 8px;
-    background: #262b31; color: #e8e8e8; font-size: 0.82rem; font-weight: 500; cursor: pointer;
+    flex: 1; min-width: 130px; text-align: center; padding: 11px 10px; border-radius: var(--radius-sm);
+    background: var(--surface-3); border: 1px solid var(--border); color: var(--text); font-size: 0.82rem;
+    font-weight: 600; cursor: pointer;
   }
-  .filebtn:active { background: #333a42; }
-  .errorrow { background: #1f1315; border: 1px solid #3a1620; }
+  .filebtn:active { background: #292933; }
+  .errorrow { background: var(--danger-bg); border: 1px solid #3a1620; }
   .errortext { color: #f0a3b3; font-size: 0.78rem; margin-top: 4px; white-space: pre-wrap; }
   .actrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .actstatus { font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; flex: 0 0 auto; }
-  .actstatus.success { background: #163a2b; color: #5fd28c; }
-  .actstatus.failure { background: #3a1620; color: #f26f8c; }
-  .actstatus.in_progress, .actstatus.queued { background: #3a2c16; color: #e0a94f; }
-  .acttime { font-size: 0.72rem; color: #7c8591; }
+  .actstatus { font-size: 0.68rem; padding: 3px 9px; border-radius: 999px; flex: 0 0 auto; font-weight: 700; text-transform: uppercase; }
+  .actstatus.success { background: var(--success-bg); color: var(--success); }
+  .actstatus.failure { background: var(--danger-bg); color: var(--danger); }
+  .actstatus.in_progress, .actstatus.queued { background: var(--warning-bg); color: var(--warning); }
+  .acttime { font-size: 0.72rem; color: var(--text-faint); }
 </style>
 </head>
 <body>
@@ -109,6 +200,8 @@ function setConfig(c) { localStorage.setItem(CFG_KEY, JSON.stringify(c)); }
 
 const DATA_DIR = 'projects';
 const WORKFLOW = 'agent.yml';
+const FREE_MINUTES_PER_MONTH = 2000;
+const AVATAR_COLORS = ['#7c6cf6', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#ec4899', '#06b6d4', '#8b5cf6'];
 
 function gh(path, opts = {}) {
   const c = getConfig();
@@ -154,7 +247,14 @@ function timeAgo(iso) {
   const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (s < 60) return s + 's पहले';
   if (s < 3600) return Math.floor(s / 60) + 'm पहले';
-  return Math.floor(s / 3600) + 'h पहले';
+  if (s < 86400) return Math.floor(s / 3600) + 'h पहले';
+  return Math.floor(s / 86400) + 'd पहले';
+}
+
+function avatarColor(id) {
+  let h = 0;
+  for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) >>> 0;
+  return AVATAR_COLORS[h % AVATAR_COLORS.length];
 }
 
 // Shows recent cloud runs (queued/in-progress/success/failure) so the user
@@ -179,6 +279,43 @@ async function loadActivity(projectId) {
     el.innerHTML = rows || '<div class="taskrow">अभी तक कोई run नहीं</div>';
   } catch (e) {
     el.innerHTML = `<div class="taskrow">Activity error: ${esc(e.message)}</div>`;
+  }
+}
+
+// GitHub's real Actions-minutes billing API isn't reachable from this
+// account/token (404 on the free personal-account endpoint) and Claude has
+// no usage API at all — so this is a client-computed ESTIMATE from recent
+// run wall-clock time, not an official number. Labeled as such in the UI.
+async function loadUsageEstimate() {
+  const el = document.getElementById('usage-card');
+  if (!el) return;
+  try {
+    const res = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=100`);
+    if (!res.ok) { el.innerHTML = '<div class="usage-note">Usage load नहीं हो पाया</div>'; return; }
+    const data = await res.json();
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+    let minutes = 0, runsThisMonth = 0;
+    for (const r of data.workflow_runs) {
+      const started = new Date(r.run_started_at || r.created_at).getTime();
+      if (started < monthStart) continue;
+      const ended = r.status === 'completed' ? new Date(r.updated_at).getTime() : Date.now();
+      minutes += Math.max(0, (ended - started) / 60000);
+      runsThisMonth++;
+    }
+    minutes = Math.round(minutes);
+    const pct = Math.min(100, Math.round((minutes / FREE_MINUTES_PER_MONTH) * 100));
+    el.innerHTML = `
+      <div class="usage-top">
+        <span class="usage-label">इस महीने Cloud Usage</span>
+        <span class="usage-label">${runsThisMonth} runs</span>
+      </div>
+      <div class="usage-num">${minutes}<small> / ${FREE_MINUTES_PER_MONTH} min</small></div>
+      <div class="usage-bar"><div class="usage-fill" style="width:${pct}%"></div></div>
+      <div class="usage-note">अनुमानित है (run के actual समय से calculate) — GitHub का असली billing API इस account पर उपलब्ध नहीं है, यह exact नहीं बल्कि करीबी संख्या है।</div>
+    `;
+  } catch (e) {
+    el.innerHTML = `<div class="usage-note">Usage error: ${esc(e.message)}</div>`;
   }
 }
 
@@ -220,24 +357,43 @@ async function refreshData() {
 }
 
 // ---------- views ----------
+function projectProgress(p) {
+  const done = p.COMPLETED_TASKS.length;
+  const total = done + p.TASK_QUEUE.length + (p.FAILED_TASKS || []).length;
+  return total ? Math.round((done / total) * 100) : 0;
+}
+
 function renderList() {
   const app = document.getElementById('app');
-  const rows = projectsCache.map((p) => `
+  const rows = projectsCache.map((p) => {
+    const initial = (p.PROJECT_NAME || p.PROJECT_ID || '?').trim().charAt(0).toUpperCase();
+    const pct = projectProgress(p);
+    return `
     <div class="prow" onclick="goTo('project/${encodeURIComponent(p.PROJECT_ID)}')">
-      <div>
+      <div class="pavatar" style="background:${avatarColor(p.PROJECT_ID)}">${initial}</div>
+      <div class="prow-body">
         <div class="name">${esc(p.PROJECT_NAME)}</div>
         <div class="sub">${p.CURRENT_TASK ? esc(p.CURRENT_TASK.TITLE) : (p.NEXT_TASK ? 'Next: ' + esc(p.NEXT_TASK) : 'कोई task queued नहीं')}</div>
+        <div class="pbar"><div class="pbar-fill" style="width:${pct}%"></div></div>
       </div>
-      <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
-      <span class="chev">›</span>
+      <div class="prow-right">
+        <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
+        <span class="chev">›</span>
+      </div>
     </div>
-  `).join('');
+  `;
+  }).join('');
 
   app.innerHTML = `
     <div class="topbar">
-      <h1>Project Agent</h1>
+      <div class="brand"><div class="brand-mark">⚡</div><h1>Project Agent</h1></div>
       <button class="gear" onclick="toggleSetup()">⚙</button>
     </div>
+
+    <div class="card usage-card" id="usage-card">
+      <div class="usage-note">Usage लोड हो रहा है…</div>
+    </div>
+
     <div id="setupCard" class="card setup" style="display:none">
       <label>GitHub username/org</label>
       <input id="cfgOwner" placeholder="e.g. sarvan810355">
@@ -248,10 +404,11 @@ function renderList() {
       <div class="hint">Token सिर्फ आपके फोन के browser में रहता है — सीधे GitHub API को जाता है।</div>
       <button class="primary" onclick="saveConfig()">Save</button>
     </div>
+
     <div class="card setup">
       <label>Project id (e.g. parental_control)</label>
       <input id="npId" placeholder="project id">
-      <label>GitHub repo link (पहले खाली repo बना लें — नाम/owner/repo, जैसे sarvan810355/parental-control)</label>
+      <label>GitHub repo link (पहले खाली repo बना लें — owner/repo, जैसे sarvan810355/parental-control)</label>
       <input id="npRepo" placeholder="owner/repo">
       <label>App का title और पूरा plan (क्या बनाना है, कैसे काम करना चाहिए)</label>
       <div class="fieldrow">
@@ -261,8 +418,9 @@ function renderList() {
       <button class="primary" onclick="createProject()">+ New Project — बनाना शुरू करें</button>
       <div class="hint">Plan डालते ही project बनेगा, पहला task queue होगा, और Autonomous mode अपने-आप चालू हो जाएगा — Claude scratch से app बनाना शुरू कर देगा।</div>
     </div>
-    <div class="sectiontitle">आपके projects</div>
-    <div class="plist">${rows || '<div class="empty">कोई project नहीं है। ऊपर से नया बनाएं।</div>'}</div>
+
+    <div class="sectiontitle">आपके Projects · ${projectsCache.length}</div>
+    <div class="plist">${rows || '<div class="empty"><div class="big">📁</div>कोई project नहीं है।<br>ऊपर से नया बनाएं।</div>'}</div>
   `;
 
   const c = getConfig();
@@ -270,6 +428,7 @@ function renderList() {
   document.getElementById('cfgRepo').value = c.repo || '';
   document.getElementById('cfgToken').value = c.token || '';
   if (!c.token) document.getElementById('setupCard').style.display = 'flex';
+  loadUsageEstimate();
 }
 
 function renderDetail(id) {
@@ -297,16 +456,19 @@ function renderDetail(id) {
 
   app.innerHTML = `
     <button class="back" onclick="goTo('')">‹ सारे projects</button>
-    <div class="topbar" style="margin-top:8px">
-      <h2>${esc(p.PROJECT_NAME)}</h2>
+    <div class="topbar" style="margin-top:10px">
+      <div class="brand">
+        <div class="pavatar" style="background:${avatarColor(p.PROJECT_ID)}">${esc((p.PROJECT_NAME || '?').charAt(0).toUpperCase())}</div>
+        <h2>${esc(p.PROJECT_NAME)}</h2>
+      </div>
       <span class="badge ${badgeClass(p.PROJECT_STATUS)}">${p.PROJECT_STATUS}</span>
     </div>
     <div class="card">
       <div class="meta">
         Current: ${p.CURRENT_TASK ? esc(p.CURRENT_TASK.TITLE) : '—'}<br>
         Next: ${p.NEXT_TASK || '—'}<br>
-        Code repo: ${p.REPO ? `<a href="https://github.com/${p.REPO}" style="color:#6fb3f2" target="_blank">${p.REPO}</a>` : 'not linked'}<br>
-        Autonomous mode: <b style="color:${p.AUTONOMOUS_MODE ? '#5fd28c' : '#98a2ad'}">${p.AUTONOMOUS_MODE ? 'ON — काम खुद चलता रहेगा' : 'OFF'}</b>
+        Code repo: ${p.REPO ? `<a href="https://github.com/${p.REPO}" target="_blank">${p.REPO}</a>` : 'not linked'}<br>
+        Autonomous mode: <b style="color:${p.AUTONOMOUS_MODE ? 'var(--success)' : 'var(--text-dim)'}">${p.AUTONOMOUS_MODE ? 'ON — काम खुद चलता रहेगा' : 'OFF'}</b>
       </div>
       ${p.RESUME_POINT ? `<div class="resume">${esc(p.RESUME_POINT)}</div>` : ''}
       <div class="actions">
@@ -315,7 +477,7 @@ function renderDetail(id) {
         <button onclick="toggleAdd('${p.PROJECT_ID}')">+ Task</button>
       </div>
       <div class="actions">
-        <button class="${p.AUTONOMOUS_MODE ? '' : 'primary'}" onclick="toggleAutonomous('${p.PROJECT_ID}', ${!p.AUTONOMOUS_MODE})">${p.AUTONOMOUS_MODE ? 'Autonomous बंद करें' : 'Autonomous चालू करें'}</button>
+        <button class="${p.AUTONOMOUS_MODE ? 'ghost' : 'primary'}" onclick="toggleAutonomous('${p.PROJECT_ID}', ${!p.AUTONOMOUS_MODE})">${p.AUTONOMOUS_MODE ? 'Autonomous बंद करें' : 'Autonomous चालू करें'}</button>
       </div>
       <div class="addbox" id="add-${p.PROJECT_ID}">
         <div class="fieldrow">
@@ -342,12 +504,12 @@ function renderDetail(id) {
       </div>
     </div>
 
-    ${failedRows ? `<div class="sectiontitle" style="color:#f26f8c">Failed (${p.FAILED_TASKS.length})</div><div class="tasklist">${failedRows}</div>` : ''}
+    ${failedRows ? `<div class="sectiontitle" style="color:var(--danger)">Failed · ${p.FAILED_TASKS.length}</div><div class="tasklist">${failedRows}</div>` : ''}
 
-    <div class="sectiontitle">Queue (${p.TASK_QUEUE.length})</div>
+    <div class="sectiontitle">Queue · ${p.TASK_QUEUE.length}</div>
     <div class="tasklist">${queueRows}</div>
 
-    <div class="sectiontitle">Completed (${p.COMPLETED_TASKS.length})</div>
+    <div class="sectiontitle">Completed · ${p.COMPLETED_TASKS.length}</div>
     <div class="tasklist">${doneRows}</div>
 
     <div class="sectiontitle">Cloud Activity (सभी projects की, filter नहीं है)</div>
