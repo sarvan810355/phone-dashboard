@@ -208,10 +208,18 @@ function renderList() {
       <div class="hint">Token सिर्फ आपके फोन के browser में रहता है — सीधे GitHub API को जाता है।</div>
       <button class="primary" onclick="saveConfig()">Save</button>
     </div>
-    <div class="card setup" style="flex-direction:row; flex-wrap:wrap; gap:8px">
-      <input id="npId" style="flex:1; min-width:120px" placeholder="project id (e.g. recharge_checker)">
-      <input id="npRepo" style="flex:1; min-width:150px" placeholder="owner/repo (optional, code link)">
-      <button class="primary" style="flex:0 0 100%" onclick="createProject()">+ New Project</button>
+    <div class="card setup">
+      <label>Project id (e.g. parental_control)</label>
+      <input id="npId" placeholder="project id">
+      <label>GitHub repo link (पहले खाली repo बना लें — नाम/owner/repo, जैसे sarvan810355/parental-control)</label>
+      <input id="npRepo" placeholder="owner/repo">
+      <label>App का title और पूरा plan (क्या बनाना है, कैसे काम करना चाहिए)</label>
+      <div class="fieldrow">
+        <textarea id="npPlan" rows="4" placeholder="जैसे: Parental Control app — parents apne bacchon ka screen time track kar sakein, daily app usage limit laga sakein, limit paar hone par notification bheje..."></textarea>
+        <button type="button" class="mic" id="mic-npPlan" onclick="startVoice('npPlan')">🎤</button>
+      </div>
+      <button class="primary" onclick="createProject()">+ New Project — बनाना शुरू करें</button>
+      <div class="hint">Plan डालते ही project बनेगा, पहला task queue होगा, और Autonomous mode अपने-आप चालू हो जाएगा — Claude scratch से app बनाना शुरू कर देगा।</div>
     </div>
     <div class="sectiontitle">आपके projects</div>
     <div class="plist">${rows || '<div class="empty">कोई project नहीं है। ऊपर से नया बनाएं।</div>'}</div>
@@ -385,10 +393,29 @@ async function addTask(id) {
 async function createProject() {
   const id = document.getElementById('npId').value.trim();
   const repo = document.getElementById('npRepo').value.trim();
+  const plan = document.getElementById('npPlan').value.trim();
   if (!id) return;
-  setStatus('creating project on GitHub Actions…');
+
+  // These three dispatches queue as separate Actions runs, but the
+  // workflow's concurrency group (per projectId) makes them run one after
+  // another in order — so it's safe to fire all three immediately without
+  // waiting for each to finish.
+  setStatus('project बना रहा हूं…');
   await dispatch({ action: 'init', projectId: id, repo });
-  setStatus('project create queued — थोड़ी देर बाद refresh करें।');
+
+  if (plan) {
+    setStatus('पहला task queue कर रहा हूं…');
+    await dispatch({ action: 'add-task', projectId: id, title: `Build: ${id}`, description: plan });
+    setStatus('Autonomous mode चालू कर रहा हूं…');
+    await dispatch({ action: 'autonomous-on', projectId: id });
+    setStatus('शुरू हो गया — project बनेगा, पहला task queue होगा, फिर Claude खुद बनाना शुरू कर देगा (~1-2 मिनट में asar दिखेगा)।');
+  } else {
+    setStatus('project create queued — थोड़ी देर बाद refresh करें।');
+  }
+
+  document.getElementById('npId').value = '';
+  document.getElementById('npRepo').value = '';
+  document.getElementById('npPlan').value = '';
 }
 
 async function work(id) { setStatus('running one task cycle in the cloud…'); await dispatch({ action: 'work', projectId: id }); setStatus('cycle queued — ~30-90s में repo update होगा।'); }
