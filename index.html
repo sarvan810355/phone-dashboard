@@ -390,11 +390,27 @@ async function addTask(id) {
   setStatus('task queued — ~30-60s में state update होगा।');
 }
 
+// project id becomes a filesystem folder name and a URL fragment — force it
+// to a safe slug (letters/numbers/_/- only) instead of trusting free text.
+function slugify(s) {
+  return s.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+// Accepts a pasted full GitHub URL too, not just "owner/repo".
+function normalizeRepo(s) {
+  s = s.trim().replace(/\.git$/, '').replace(/\/$/, '');
+  const m = s.match(/github\.com[/:]([^/]+\/[^/]+)$/i);
+  return m ? m[1] : s;
+}
+
 async function createProject() {
-  const id = document.getElementById('npId').value.trim();
-  const repo = document.getElementById('npRepo').value.trim();
+  const rawId = document.getElementById('npId').value.trim();
+  const rawRepo = document.getElementById('npRepo').value.trim();
   const plan = document.getElementById('npPlan').value.trim();
-  if (!id) return;
+  if (!rawId) return;
+  const id = slugify(rawId);
+  const repo = rawRepo ? normalizeRepo(rawRepo) : '';
+  if (id !== rawId) setStatus(`project id को safe बना दिया: "${id}"`);
 
   setStatus('शुरू कर रहा हूं…');
   if (plan) {
