@@ -87,6 +87,14 @@
     background: #262b31; color: #e8e8e8; font-size: 0.82rem; font-weight: 500; cursor: pointer;
   }
   .filebtn:active { background: #333a42; }
+  .errorrow { background: #1f1315; border: 1px solid #3a1620; }
+  .errortext { color: #f0a3b3; font-size: 0.78rem; margin-top: 4px; white-space: pre-wrap; }
+  .actrow { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .actstatus { font-size: 0.72rem; padding: 2px 7px; border-radius: 999px; flex: 0 0 auto; }
+  .actstatus.success { background: #163a2b; color: #5fd28c; }
+  .actstatus.failure { background: #3a1620; color: #f26f8c; }
+  .actstatus.in_progress, .actstatus.queued { background: #3a2c16; color: #e0a94f; }
+  .acttime { font-size: 0.72rem; color: #7c8591; }
 </style>
 </head>
 <body>
@@ -139,6 +147,38 @@ async function dispatch(inputs) {
   if (!res.ok) {
     const t = await res.text();
     throw new Error('trigger failed: ' + res.status + ' ' + t);
+  }
+}
+
+function timeAgo(iso) {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return s + 's पहले';
+  if (s < 3600) return Math.floor(s / 60) + 'm पहले';
+  return Math.floor(s / 3600) + 'h पहले';
+}
+
+// Shows recent cloud runs (queued/in-progress/success/failure) so the user
+// can see *what's actually happening right now*, not just the state.json
+// snapshot from after a run finishes — this is the "kaunsa step chal raha
+// hai" visibility that pure state polling can't give.
+async function loadActivity(projectId) {
+  const el = document.getElementById('activity-' + projectId);
+  if (!el) return;
+  try {
+    const res = await gh(`/actions/workflows/${WORKFLOW}/runs?per_page=6`);
+    if (!res.ok) { el.innerHTML = '<div class="taskrow">Activity load नहीं हो पाई</div>'; return; }
+    const data = await res.json();
+    const rows = data.workflow_runs.slice(0, 6).map((r) => {
+      const st = r.status === 'completed' ? r.conclusion : r.status;
+      return `<div class="taskrow actrow">
+        <span>Run #${r.run_number}</span>
+        <span class="acttime">${timeAgo(r.created_at)}</span>
+        <span class="actstatus ${st}">${st}</span>
+      </div>`;
+    }).join('');
+    el.innerHTML = rows || '<div class="taskrow">अभी तक कोई run नहीं</div>';
+  } catch (e) {
+    el.innerHTML = `<div class="taskrow">Activity error: ${esc(e.message)}</div>`;
   }
 }
 
@@ -248,6 +288,13 @@ function renderDetail(id) {
     <div class="taskrow"><span class="ttitle">✓ ${esc(t.TITLE)}</span></div>
   `).join('') || '<div class="taskrow">अभी तक कुछ पूरा नहीं हुआ</div>';
 
+  const failedRows = (p.FAILED_TASKS || []).slice().reverse().map((t) => `
+    <div class="taskrow errorrow">
+      <div class="ttitle">✗ ${esc(t.TITLE)}</div>
+      ${(t.ERRORS || []).slice(-1).map((e) => `<div class="errortext">${esc(e)}</div>`).join('')}
+    </div>
+  `).join('');
+
   app.innerHTML = `
     <button class="back" onclick="goTo('')">‹ सारे projects</button>
     <div class="topbar" style="margin-top:8px">
@@ -295,12 +342,18 @@ function renderDetail(id) {
       </div>
     </div>
 
+    ${failedRows ? `<div class="sectiontitle" style="color:#f26f8c">Failed (${p.FAILED_TASKS.length})</div><div class="tasklist">${failedRows}</div>` : ''}
+
     <div class="sectiontitle">Queue (${p.TASK_QUEUE.length})</div>
     <div class="tasklist">${queueRows}</div>
 
     <div class="sectiontitle">Completed (${p.COMPLETED_TASKS.length})</div>
     <div class="tasklist">${doneRows}</div>
+
+    <div class="sectiontitle">Cloud Activity (सभी projects की, filter नहीं है)</div>
+    <div class="tasklist" id="activity-${p.PROJECT_ID}"><div class="taskrow">लोड हो रहा है…</div></div>
   `;
+  loadActivity(p.PROJECT_ID);
 }
 
 function render() {
@@ -419,15 +472,32 @@ async function createProject() {
     // reliably (GitHub's concurrency queue only keeps the newest pending
     // run per project, silently cancelling the ones in between).
     await dispatch({ action: 'init-and-start', projectId: id, repo, title: `Build: ${id}`, description: plan });
-    setStatus('शुरू हो गया — project बनेगा, पहला task queue होगा, फिर Claude खुद बनाना शुरू कर देगा (~1-2 मिनट में asar दिखेगा)।');
+    setStatus('शुरू हो गया — cloud में project बन रहा है, यहीं wait कीजिए…');
   } else {
     await dispatch({ action: 'init', projectId: id, repo });
-    setStatus('project create queued — थोड़ी देर बाद refresh करें।');
+    setStatus('project create queued — cloud में बन रहा है, यहीं wait कीजिए…');
   }
 
   document.getElementById('npId').value = '';
   document.getElementById('npRepo').value = '';
   document.getElementById('npPlan').value = '';
+  waitForNewProject(id);
+}
+
+// Polls quickly (every 4s, up to 2 minutes) right after creating a project
+// instead of waiting for the normal 20s background refresh, and jumps
+// straight to its detail page — with a fresh project, waiting is otherwise
+// the entire experience, so make that wait visible and short.
+async function waitForNewProject(id, attempt = 0) {
+  await refreshData();
+  if (projectsCache.some((p) => p.PROJECT_ID === id)) {
+    setStatus('project बन गया!');
+    goTo('project/' + encodeURIComponent(id));
+    return;
+  }
+  if (attempt >= 30) { setStatus('अभी तक नहीं दिखा — cloud में देर हो रही है, थोड़ी देर बाद manually refresh करें।'); return; }
+  setStatus(`cloud में बन रहा है… (check ${attempt + 1}/30)`);
+  setTimeout(() => waitForNewProject(id, attempt + 1), 4000);
 }
 
 async function work(id) { setStatus('running one task cycle in the cloud…'); await dispatch({ action: 'work', projectId: id }); setStatus('cycle queued — ~30-90s में repo update होगा।'); }
