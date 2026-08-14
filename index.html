@@ -396,20 +396,16 @@ async function createProject() {
   const plan = document.getElementById('npPlan').value.trim();
   if (!id) return;
 
-  // These three dispatches queue as separate Actions runs, but the
-  // workflow's concurrency group (per projectId) makes them run one after
-  // another in order — so it's safe to fire all three immediately without
-  // waiting for each to finish.
-  setStatus('project बना रहा हूं…');
-  await dispatch({ action: 'init', projectId: id, repo });
-
+  setStatus('शुरू कर रहा हूं…');
   if (plan) {
-    setStatus('पहला task queue कर रहा हूं…');
-    await dispatch({ action: 'add-task', projectId: id, title: `Build: ${id}`, description: plan });
-    setStatus('Autonomous mode चालू कर रहा हूं…');
-    await dispatch({ action: 'autonomous-on', projectId: id });
+    // One single action does init + add-task + autonomous-on atomically —
+    // firing these as 3 separate dispatches back to back doesn't work
+    // reliably (GitHub's concurrency queue only keeps the newest pending
+    // run per project, silently cancelling the ones in between).
+    await dispatch({ action: 'init-and-start', projectId: id, repo, title: `Build: ${id}`, description: plan });
     setStatus('शुरू हो गया — project बनेगा, पहला task queue होगा, फिर Claude खुद बनाना शुरू कर देगा (~1-2 मिनट में asar दिखेगा)।');
   } else {
+    await dispatch({ action: 'init', projectId: id, repo });
     setStatus('project create queued — थोड़ी देर बाद refresh करें।');
   }
 
